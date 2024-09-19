@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(to bottom right, #ff7e5f, #feb47b);
+            color: #333;
+        }
+        .container {
+            text-align: center;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+        input {
+            font-size: 18px;
+            padding: 10px;
+            margin-bottom: 20px;
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            font-size: 18px;
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+            transform: translateY(-2px);
+        }
+        button:active {
+            background-color: #004494;
+            transform: translateY(0);
+        }
+        #spotify-controls {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Spotify Control</h1>
+        <input type="text" id="spotifySearch" placeholder="Search for a song" />
+        <button onclick="searchAndPlay()">Search & Play</button>
+        <button onclick="pausePlayback()">Pause</button>
+        <button onclick="resumePlayback()">Resume</button>
+        <div id="spotify-controls" style="display: none;">
+            <p id="track-info"></p>
+        </div>
+    </div>
+
+    <script>
+        const clientId = '1abf5a63f8e7471d8e8331e760c8a8f2'; // Your Spotify Client ID
+        const redirectUri = 'https://testingaeri.github.io/spotify-control/';
+        const scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+        let accessToken = '';
+        let player;
+
+        function loginToSpotify() {
+            window.location.href = `https://accounts.spotify.com/authorize?response_type=token&client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+        }
+
+        function getAccessTokenFromUrl() {
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            return params.get('access_token');
+        }
+
+        function searchAndPlay() {
+            if (!accessToken) {
+                alert('Please log in to Spotify first.');
+                return;
+            }
+            const query = document.getElementById('spotifySearch').value;
+            fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.tracks.items.length > 0) {
+                    const trackUri = data.tracks.items[0].uri;
+                    fetch('https://api.spotify.com/v1/me/player/play', {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ uris: [trackUri] })
+                    });
+                    document.getElementById('track-info').textContent = `Playing: ${data.tracks.items[0].name} by ${data.tracks.items[0].artists[0].name}`;
+                } else {
+                    alert('No tracks found.');
+                }
+            });
+        }
+
+        function pausePlayback() {
+            if (!accessToken) {
+                alert('Please log in to Spotify first.');
+                return;
+            }
+            fetch('https://api.spotify.com/v1/me/player/pause', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+        }
+
+        function resumePlayback() {
+            if (!accessToken) {
+                alert('Please log in to Spotify first.');
+                return;
+            }
+            fetch('https://api.spotify.com/v1/me/player/play', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+        }
+
+        function init() {
+            accessToken = getAccessTokenFromUrl();
+            if (accessToken) {
+                document.getElementById('spotify-controls').style.display = 'block';
+                setupSpotifyPlayer();
+            } else {
+                loginToSpotify();
+            }
+        }
+
+        function setupSpotifyPlayer() {
+            window.onSpotifyWebPlaybackSDKReady = () => {
+                player = new Spotify.Player({
+                    name: 'Web Playback SDK',
+                    getOAuthToken: cb => { cb(accessToken); }
+                });
+
+                // Error handling
+                player.addListener('initialization_error', ({ message }) => console.error(message));
+                player.addListener('authentication_error', ({ message }) => console.error(message));
+                player.addListener('account_error', ({ message }) => console.error(message));
+                player.addListener('playback_error', ({ message }) => console.error(message));
+
+                // Playback status updates
+                player.addListener('player_state_changed', state => console.log(state));
+
+                // Ready
+                player.addListener('ready', ({ device_id }) => {
+                    console.log('Ready');
+                });
+
+                // Not Ready
+                player.addListener('not_ready', ({ device_id }) => {
+                    console.log('Device ID has gone offline');
+                });
+
+                // Connect to the player!
+                player.connect();
+            };
+            const script = document.createElement('script');
+            script.src = 'https://sdk.scdn.co/spotify-player.js';
+            document.body.appendChild(script);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
