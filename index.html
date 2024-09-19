@@ -67,6 +67,7 @@
         <button onclick="searchAndPlay()">Search & Play</button>
         <button onclick="pausePlayback()">Pause</button>
         <button onclick="resumePlayback()">Resume</button>
+        <button onclick="loginToSpotify()">Login to Spotify</button>
         <div id="spotify-controls" style="display: none;">
             <p id="track-info"></p>
         </div>
@@ -77,10 +78,10 @@
         const redirectUri = 'https://testingaeri.github.io/spotify-control/';
         const scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
         let accessToken = '';
-        let player;
 
         function loginToSpotify() {
-            window.location.href = `https://accounts.spotify.com/authorize?response_type=token&client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+            const authUrl = `https://accounts.spotify.com/authorize?response_type=token&client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+            window.open(authUrl, '_blank'); // Open the auth URL in a new tab
         }
 
         function getAccessTokenFromUrl() {
@@ -150,43 +151,44 @@
             if (accessToken) {
                 document.getElementById('spotify-controls').style.display = 'block';
                 setupSpotifyPlayer();
-            } else {
-                loginToSpotify();
             }
         }
 
         function setupSpotifyPlayer() {
             window.onSpotifyWebPlaybackSDKReady = () => {
-                player = new Spotify.Player({
-                    name: 'Web Playback SDK',
-                    getOAuthToken: cb => { cb(accessToken); }
-                });
+                const script = document.createElement('script');
+                script.src = 'https://sdk.scdn.co/spotify-player.js';
+                document.body.appendChild(script);
 
-                // Error handling
-                player.addListener('initialization_error', ({ message }) => console.error(message));
-                player.addListener('authentication_error', ({ message }) => console.error(message));
-                player.addListener('account_error', ({ message }) => console.error(message));
-                player.addListener('playback_error', ({ message }) => console.error(message));
+                script.onload = () => {
+                    const player = new Spotify.Player({
+                        name: 'Web Playback SDK',
+                        getOAuthToken: cb => { cb(accessToken); }
+                    });
 
-                // Playback status updates
-                player.addListener('player_state_changed', state => console.log(state));
+                    // Error handling
+                    player.addListener('initialization_error', ({ message }) => console.error(message));
+                    player.addListener('authentication_error', ({ message }) => console.error(message));
+                    player.addListener('account_error', ({ message }) => console.error(message));
+                    player.addListener('playback_error', ({ message }) => console.error(message));
 
-                // Ready
-                player.addListener('ready', ({ device_id }) => {
-                    console.log('Ready');
-                });
+                    // Playback status updates
+                    player.addListener('player_state_changed', state => console.log(state));
 
-                // Not Ready
-                player.addListener('not_ready', ({ device_id }) => {
-                    console.log('Device ID has gone offline');
-                });
+                    // Ready
+                    player.addListener('ready', ({ device_id }) => {
+                        console.log('Ready');
+                    });
 
-                // Connect to the player!
-                player.connect();
+                    // Not Ready
+                    player.addListener('not_ready', ({ device_id }) => {
+                        console.log('Device ID has gone offline');
+                    });
+
+                    // Connect to the player!
+                    player.connect();
+                };
             };
-            const script = document.createElement('script');
-            script.src = 'https://sdk.scdn.co/spotify-player.js';
-            document.body.appendChild(script);
         }
 
         window.onload = init;
